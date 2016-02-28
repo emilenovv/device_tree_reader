@@ -424,7 +424,7 @@ void my_utilfdt_print_data(const char *data, int len, char *buffer)
 
 		dprintf(buffer, " = <");
 		for (i = 0, len /= 4; i < len; i++)
-			dprintf(buffer, "0x%08x%s", fdt32_to_cpu(cell[i]),
+			dprintf(buffer, "0x%x%s", fdt32_to_cpu(cell[i]),
 			       i < (len - 1) ? " " : "");
 		dprintf(buffer, ">");
 	} else {
