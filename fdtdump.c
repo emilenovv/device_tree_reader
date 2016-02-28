@@ -1,16 +1,13 @@
-/*
- * fdtdump.c - Contributed by Pantelis Antoniou <pantelis.antoniou AT gmail.com>
- */
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <ctype.h>
 
-#include <libfdt.h>
+/* Needed for fdr32_to_cpu and so on. */
 #include <libfdt_env.h>
+
+/* Needed for struct and FDT_* macros */
 #include <fdt.h>
 
 #include "util.h"
@@ -18,8 +15,6 @@
 #define ALIGN(x, a)	(((x) + ((a) - 1)) & ~((a) - 1))
 #define PALIGN(p, a)	((void *)(ALIGN((unsigned long)(p), (a))))
 #define GET_CELL(p)	(p += 4, *((const uint32_t *)(p-4)))
-
-
 
 static const char *tagname(uint32_t tag)
 {
@@ -70,6 +65,7 @@ static void dump_blob(void *blob, bool debug)
 
 	uint32_t off_total_size = fdt32_to_cpu(bph->totalsize);
 
+	/* TODO: Remove this additional info. Do I need it? */
 
 	dprintf(buffer, "totalsize: %d\n", off_total_size);
 
@@ -150,96 +146,27 @@ static void dump_blob(void *blob, bool debug)
 		dumpf("%04zx: string: %s\n", (uintptr_t)s - blob_off, s);
 		dumpf("%04zx: value\n", (uintptr_t)t - blob_off);
 		dprintf(buffer, "%*s%s", depth * shift, "", s);
-		// printf("%d\n", _len);
 		my_utilfdt_print_data(t, sz, buffer);
 		dprintf(buffer, ";\n");
 	}
-		printf("****buffer: %s", buffer);
+		printf("%s", buffer);
 }
-
-/* Usage related data. */
-static const char usage_synopsis[] = "fdtdump [options] <file>";
-static const char usage_short_opts[] = "ds" USAGE_COMMON_SHORT_OPTS;
-static struct option const usage_long_opts[] = {
-	{"debug",            no_argument, NULL, 'd'},
-	{"scan",             no_argument, NULL, 's'},
-	USAGE_COMMON_LONG_OPTS
-};
-static const char * const usage_opts_help[] = {
-	"Dump debug information while decoding the file",
-	"Scan for an embedded fdt in file",
-	USAGE_COMMON_OPTS_HELP
-};
 
 int main(int argc, char *argv[])
 {
-	// char *buf, *name;
-	// int len = 0;
-	// buf = malloc(buffer_length);
-	// dump_to_buf(buf, &len, name , strlen(name) + 1);
-	// printf("buf: %s\n", buf);
-	// return 0;
-	int opt;
 	const char *file;
 	char *buf;
 	bool debug = false;
-	bool scan = false;
 	off_t len;
 
-	while ((opt = util_getopt_long()) != EOF) {
-		switch (opt) {
-		case_USAGE_COMMON_FLAGS
+	file = argv[1];
 
-		case 'd':
-			debug = true;
-			break;
-		case 's':
-			scan = true;
-			break;
-		}
-	}
-	if (optind != argc - 1)
-		usage("missing input filename");
-	file = argv[optind];
+	/* TODO: I will pass the buf a pointer to the device tree blob
+	* instead of reading a binary file. */
 
 	buf = utilfdt_read_len(file, &len);
 	if (!buf)
 		die("could not read: %s\n", file);
-
-	/* try and locate an embedded fdt in a bigger blob */
-	if (scan) {
-		unsigned char smagic[4];
-		char *p = buf;
-		char *endp = buf + len;
-
-		fdt_set_magic(smagic, FDT_MAGIC);
-
-		/* poor man's memmem */
-		while (true) {
-			p = memchr(p, smagic[0], endp - p - 4);
-			if (!p)
-				break;
-			if (fdt_magic(p) == FDT_MAGIC) {
-				/* try and validate the main struct */
-				off_t this_len = endp - p;
-				fdt32_t max_version = 17;
-				if (fdt_version(p) <= max_version &&
-				    fdt_last_comp_version(p) < max_version &&
-				    fdt_totalsize(p) < this_len &&
-				    fdt_off_dt_struct(p) < this_len &&
-					fdt_off_dt_strings(p) < this_len)
-					break;
-				if (debug)
-					printf("%s: skipping fdt magic at offset %#zx\n",
-						file, p - buf);
-			}
-			++p;
-		}
-		if (!p)
-			die("%s: could not locate fdt magic\n", file);
-		printf("%s: found fdt at offset %#zx\n", file, p - buf);
-		buf = p;
-	}
 
 	dump_blob(buf, debug);
 
