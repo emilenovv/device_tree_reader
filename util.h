@@ -182,7 +182,22 @@ int utilfdt_decode_type(const char *fmt, int *type, int *size);
  * @param data	Pointers to property data
  * @param len	Length of property data
  */
+
+#define DUMP_TO_BUF
+#ifdef DUMP_TO_BUF
+extern int buffer_length;
+#endif
+
+#define dprintf(buf, fmt, args...) \
+	do { _len = _len + snprintf(buf + _len, MAX_LEN - _len,  fmt, ## args); } while (0)
+
+extern int MAX_LEN, _len;
+
+void dump_to_buf(char *buf, int *cur_pos, const char *data, const int len);
+
 void utilfdt_print_data(const char *data, int len);
+
+void my_utilfdt_print_data(const char *data, int len, char *buffer);
 
 /**
  * Show source version and exit

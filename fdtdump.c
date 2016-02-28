@@ -19,6 +19,8 @@
 #define PALIGN(p, a)	((void *)(ALIGN((unsigned long)(p), (a))))
 #define GET_CELL(p)	(p += 4, *((const uint32_t *)(p-4)))
 
+
+
 static const char *tagname(uint32_t tag)
 {
 	static const char * const names[] = {
@@ -39,6 +41,7 @@ static const char *tagname(uint32_t tag)
 #define dumpf(fmt, args...) \
 	do { if (debug) printf("// " fmt, ## args); } while (0)
 
+
 static void dump_blob(void *blob, bool debug)
 {
 	uintptr_t blob_off = (uintptr_t)blob;
@@ -49,6 +52,7 @@ static void dump_blob(void *blob, bool debug)
 	struct fdt_reserve_entry *p_rsvmap =
 		(struct fdt_reserve_entry *)((char *)blob + off_mem_rsvmap);
 	const char *p_struct = (const char *)blob + off_dt;
+	/* Get offset to the strings */
 	const char *p_strings = (const char *)blob + off_str;
 	uint32_t version = fdt32_to_cpu(bph->version);
 	uint32_t totalsize = fdt32_to_cpu(bph->totalsize);
@@ -58,29 +62,36 @@ static void dump_blob(void *blob, bool debug)
 	int i;
 	uint64_t addr, size;
 
+	char *buffer;
+	buffer = (char *)malloc(MAX_LEN);
+
 	depth = 0;
 	shift = 4;
 
-	printf("/dts-v1/;\n");
-	printf("// magic:\t\t0x%x\n", fdt32_to_cpu(bph->magic));
-	printf("// totalsize:\t\t0x%x (%d)\n", totalsize, totalsize);
-	printf("// off_dt_struct:\t0x%x\n", off_dt);
-	printf("// off_dt_strings:\t0x%x\n", off_str);
-	printf("// off_mem_rsvmap:\t0x%x\n", off_mem_rsvmap);
-	printf("// version:\t\t%d\n", version);
-	printf("// last_comp_version:\t%d\n",
+	uint32_t off_total_size = fdt32_to_cpu(bph->totalsize);
+
+
+	dprintf(buffer, "totalsize: %d\n", off_total_size);
+
+	dprintf(buffer, "// magic:\t\t0x%x\n", fdt32_to_cpu(bph->magic));
+	dprintf(buffer, "// totalsize:\t\t0x%x (%d)\n", totalsize, totalsize);
+	dprintf(buffer, "// off_dt_struct:\t0x%x\n", off_dt);
+	dprintf(buffer, "// off_dt_strings:\t0x%x\n", off_str);
+	dprintf(buffer, "// off_mem_rsvmap:\t0x%x\n", off_mem_rsvmap);
+	dprintf(buffer, "// version:\t\t%d\n", version);
+	dprintf(buffer, "// last_comp_version:\t%d\n",
 	       fdt32_to_cpu(bph->last_comp_version));
-	if (version >= 2)
-		printf("// boot_cpuid_phys:\t0x%x\n",
+	if (version >= 2)	
+		dprintf(buffer, "// boot_cpuid_phys:\t0x%x\n",
 		       fdt32_to_cpu(bph->boot_cpuid_phys));
 
 	if (version >= 3)
-		printf("// size_dt_strings:\t0x%x\n",
+		dprintf(buffer, "// size_dt_strings:\t0x%x\n",
 		       fdt32_to_cpu(bph->size_dt_strings));
 	if (version >= 17)
-		printf("// size_dt_struct:\t0x%x\n",
+		dprintf(buffer, "// size_dt_struct:\t0x%x\n",
 		       fdt32_to_cpu(bph->size_dt_struct));
-	printf("\n");
+	dprintf(buffer, "\n");
 
 	for (i = 0; ; i++) {
 		addr = fdt64_to_cpu(p_rsvmap[i].address);
@@ -88,13 +99,12 @@ static void dump_blob(void *blob, bool debug)
 		if (addr == 0 && size == 0)
 			break;
 
-		printf("/memreserve/ %#llx %#llx;\n",
+		dprintf(buffer, "/memreserve/ %#llx %#llx;\n",
 		       (unsigned long long)addr, (unsigned long long)size);
 	}
 
 	p = p_struct;
 	while ((tag = fdt32_to_cpu(GET_CELL(p))) != FDT_END) {
-
 		dumpf("%04zx: tag: 0x%08x (%s)\n",
 		        (uintptr_t)p - blob_off - 4, tag, tagname(tag));
 
@@ -105,7 +115,7 @@ static void dump_blob(void *blob, bool debug)
 			if (*s == '\0')
 				s = "/";
 
-			printf("%*s%s {\n", depth * shift, "", s);
+			dprintf(buffer, "%*s%s {\n", depth * shift, "", s);
 
 			depth++;
 			continue;
@@ -114,12 +124,12 @@ static void dump_blob(void *blob, bool debug)
 		if (tag == FDT_END_NODE) {
 			depth--;
 
-			printf("%*s};\n", depth * shift, "");
+			dprintf(buffer, "%*s};\n", depth * shift, "");
 			continue;
 		}
 
 		if (tag == FDT_NOP) {
-			printf("%*s// [NOP]\n", depth * shift, "");
+			dprintf(buffer, "%*s// [NOP]\n", depth * shift, "");
 			continue;
 		}
 
@@ -127,7 +137,9 @@ static void dump_blob(void *blob, bool debug)
 			fprintf(stderr, "%*s ** Unknown tag 0x%08x\n", depth * shift, "", tag);
 			break;
 		}
+		/* sz - length of the returned values in bytes */
 		sz = fdt32_to_cpu(GET_CELL(p));
+		/* s - pointer to the property name */
 		s = p_strings + fdt32_to_cpu(GET_CELL(p));
 		if (version < 16 && sz >= 8)
 			p = PALIGN(p, 8);
@@ -137,10 +149,12 @@ static void dump_blob(void *blob, bool debug)
 
 		dumpf("%04zx: string: %s\n", (uintptr_t)s - blob_off, s);
 		dumpf("%04zx: value\n", (uintptr_t)t - blob_off);
-		printf("%*s%s", depth * shift, "", s);
-		utilfdt_print_data(t, sz);
-		printf(";\n");
+		dprintf(buffer, "%*s%s", depth * shift, "", s);
+		// printf("%d\n", _len);
+		my_utilfdt_print_data(t, sz, buffer);
+		dprintf(buffer, ";\n");
 	}
+		printf("****buffer: %s", buffer);
 }
 
 /* Usage related data. */
@@ -159,6 +173,12 @@ static const char * const usage_opts_help[] = {
 
 int main(int argc, char *argv[])
 {
+	// char *buf, *name;
+	// int len = 0;
+	// buf = malloc(buffer_length);
+	// dump_to_buf(buf, &len, name , strlen(name) + 1);
+	// printf("buf: %s\n", buf);
+	// return 0;
 	int opt;
 	const char *file;
 	char *buf;

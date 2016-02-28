@@ -345,6 +345,21 @@ int utilfdt_decode_type(const char *fmt, int *type, int *size)
 	return 0;
 }
 
+int buffer_length = 1;
+
+void dump_to_buf(char *buf, int *cur_pos, const char *data, const int len)
+{
+	printf("%d %d\n", *cur_pos + len, buffer_length);
+	if (*cur_pos + len > buffer_length)
+	{
+		buffer_length = (*cur_pos + len) * 2 + 1;
+		printf("reallocing to %d!\n", buffer_length);
+		buf = (char *)realloc(buf, buffer_length);
+	}
+	sprintf((buf + *cur_pos), "%s", data);
+	*cur_pos += len;
+}
+
 void utilfdt_print_data(const char *data, int len)
 {
 	int i;
@@ -379,6 +394,45 @@ void utilfdt_print_data(const char *data, int len)
 		for (i = 0; i < len; i++)
 			printf("%02x%s", *p++, i < len - 1 ? " " : "");
 		printf("]");
+	}
+}
+
+int MAX_LEN = 100000, _len = 0;
+
+void my_utilfdt_print_data(const char *data, int len, char *buffer)
+{
+	int i;
+	const char *s;
+
+	/* no data, don't print */
+	if (len == 0)
+		return;
+
+	if (util_is_printable_string(data, len)) {
+		dprintf(buffer, " = ");
+
+		s = data;
+		do {
+			dprintf(buffer, "\"%s\"", s);
+			s += strlen(s) + 1;
+			if (s < data + len)
+				dprintf(buffer, ", ");
+		} while (s < data + len);
+
+	} else if ((len % 4) == 0) {
+		const uint32_t *cell = (const uint32_t *)data;
+
+		dprintf(buffer, " = <");
+		for (i = 0, len /= 4; i < len; i++)
+			dprintf(buffer, "0x%08x%s", fdt32_to_cpu(cell[i]),
+			       i < (len - 1) ? " " : "");
+		dprintf(buffer, ">");
+	} else {
+		const unsigned char *p = (const unsigned char *)data;
+		dprintf(buffer, " = [");
+		for (i = 0; i < len; i++)
+			dprintf(buffer, "%02x%s", *p++, i < len - 1 ? " " : "");
+		dprintf(buffer, "]");
 	}
 }
 
