@@ -213,8 +213,6 @@ TESTS_BIN += fdtput
 TESTS_BIN += fdtget
 TESTS_BIN += fdtdump
 
-include tests/Makefile.tests
-
 #
 # Clean rules
 #
